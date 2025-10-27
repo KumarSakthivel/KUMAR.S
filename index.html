@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-g" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Learnio.AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              'sans': ['Century Gothic', 'Poppins', 'sans-serif'],
+              'montserrat': ['Montserrat', 'sans-serif'],
+            },
+            colors: {
+              light: {
+                background: '#f0f4f8',
+                text: '#1a1a1a',
+                accent: '#0078FF',
+                card: '#ffffff',
+                border: '#e2e8f0',
+              },
+              dark: {
+                background: '#121212',
+                text: '#e0e0e0',
+                accent: '#00FF88',
+                card: '#1e1e1e',
+                border: '#2d2d2d',
+                glow: 'rgba(0, 255, 136, 0.4)',
+              }
+            },
+            keyframes: {
+              shimmer: {
+                '0%, 100%': { 'background-position': '-100% 0' },
+                '50%': { 'background-position': '100% 0' },
+              },
+              glow: {
+                '0%, 100%': { 'box-shadow': '0 0 5px rgba(0, 255, 136, 0.7), 0 0 10px rgba(0, 255, 136, 0.7)' },
+                '50%': { 'box-shadow': '0 0 20px rgba(0, 255, 136, 0.9), 0 0 30px rgba(0, 255, 136, 0.9)' },
+              },
+              'fade-up': {
+                  '0%': { opacity: '0', transform: 'translateY(20px)' },
+                  '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              'pop': {
+                  '0%, 100%': { transform: 'scale(1)' },
+                  '50%': { transform: 'scale(1.05)' },
+              },
+              'shake': {
+                  '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                  '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                  '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                  '40%, 60%': { transform: 'translate3d(4px, 0, 0)' },
+              }
+            },
+            animation: {
+              shimmer: 'shimmer 3s infinite linear',
+              glow: 'glow 2s ease-in-out infinite',
+              'fade-up': 'fade-up 0.6s ease-out forwards',
+              'pop': 'pop 0.3s ease-in-out',
+              'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "Learnio.AI",
+  "description": "An AI-powered educational guidance and work-management platform to help users learn smarter, organize projects, and manage ideas intelligently.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
