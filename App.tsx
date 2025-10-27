@@ -73,7 +73,7 @@ declare global {
 
 import React, { useState, useEffect, createContext, useContext, useCallback, useRef, PropsWithChildren, useMemo } from 'react';
 import type { Theme, Page, Project, ChatMessage, Task, Note, UserProfile, Language, ToastMessage, ToastType, Notification } from './types';
-import { HomeIcon, ChatIcon, SearchIcon, ProjectsIcon, SunIcon, MoonIcon, ProfileIcon, PlusIcon, EditIcon, DeleteIcon, SendIcon, CloseIcon, CheckIcon, SpinnerIcon, GoogleIcon, MicrosoftIcon, UserIcon, PhoneIcon, EmailIcon, LockIcon, PinIcon, PinSolidIcon, MicrophoneIcon, ExportIcon, BackIcon, EyeIcon, EyeSlashIcon, NotificationIcon, LightbulbIcon, CheckCircleIcon, SpeakerIcon, StopIcon, CopyIcon, ClockIcon, LogoutIcon, CameraIcon, PlayIcon, PauseIcon, EnglishFlagIcon, TamilFlagIcon, PausedWaveIcon, AppleIcon } from './components/Icons';
+import { HomeIcon, ChatIcon, SearchIcon, ProjectsIcon, SunIcon, MoonIcon, ProfileIcon, PlusIcon, EditIcon, DeleteIcon, SendIcon, CloseIcon, CheckIcon, SpinnerIcon, GoogleIcon, MicrosoftIcon, UserIcon, PhoneIcon, EmailIcon, LockIcon, PinIcon, PinSolidIcon, MicrophoneIcon, ExportIcon, BackIcon, EyeIcon, EyeSlashIcon, NotificationIcon, LightbulbIcon, CheckCircleIcon, SpeakerIcon, StopIcon, CopyIcon, ClockIcon, LogoutIcon, CameraIcon, PlayIcon, PauseIcon, EnglishFlagIcon, TamilFlagIcon, PausedWaveIcon } from './components/Icons';
 import { generateChatResponse, summarizeText } from './services/geminiService';
 
 // --- App Context ---
@@ -81,7 +81,7 @@ interface AppContextType {
   theme: Theme;
   toggleTheme: () => void;
   isLoggedIn: boolean;
-  login: (remember?: boolean) => void;
+  login: (userData: { name: string; email: string }, remember?: boolean) => void;
   logout: () => void;
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
@@ -115,7 +115,11 @@ interface AppContextType {
   openExportModal: () => void;
   closeExportModal: () => void;
   notifications: Notification[];
+  markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
+  searchHistory: string[];
+  addSearchToHistory: (query: string) => void;
+  clearSearchHistory: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -128,8 +132,8 @@ const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('userProfile');
     return saved ? JSON.parse(saved) : {
-        name: 'Alex Doe',
-        email: 'alex.doe@example.com',
+        name: '',
+        email: '',
         phone: '123-456-7890',
         avatar: undefined,
     };
@@ -188,10 +192,14 @@ const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([
-    { id: '1', text: 'New comment on "AI Research Paper"', timestamp: '5m ago', isRead: false, type: 'project' },
-    { id: '2', text: 'Your task "Finalize Q3 report" is due tomorrow', timestamp: '1h ago', isRead: false, type: 'task' },
-    { id: '3', text: 'Profile update was successful', timestamp: '1d ago', isRead: true, type: 'general' },
+    { id: '1', text: 'New comment on "AI Research Paper"', timestamp: '5m ago', isRead: false, type: 'project', link: 'projects', contextId: '1' },
+    { id: '2', text: 'Your task "Finalize Q3 report" is due tomorrow', timestamp: '1h ago', isRead: false, type: 'task', link: 'home' },
+    { id: '3', text: 'Profile update was successful', timestamp: '1d ago', isRead: true, type: 'general', link: 'profile' },
   ]);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    const saved = localStorage.getItem('searchHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   useEffect(() => {
     const root = window.document.documentElement;
@@ -200,20 +208,34 @@ const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     root.style.backgroundColor = theme === 'light' ? '#f0f4f8' : '#121212';
     root.style.fontFamily = "'Century Gothic', 'Poppins', 'sans-serif'";
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+  }, [searchHistory]);
   
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   
-  const login = (remember: boolean = false) => {
+  const login = (userData: { name: string; email: string }, remember: boolean = false) => {
     if (remember) {
       localStorage.setItem('rememberMe', 'true');
     } else {
       localStorage.removeItem('rememberMe');
     }
+    const newProfile = { ...userProfile, name: userData.name, email: userData.email };
+    setUserProfile(newProfile);
+    localStorage.setItem('userProfile', JSON.stringify(newProfile));
     setIsLoggedIn(true);
   };
 
   const logout = () => {
     localStorage.removeItem('rememberMe');
+    localStorage.removeItem('userProfile');
+    setUserProfile({
+        name: '',
+        email: '',
+        phone: '123-456-7890',
+        avatar: undefined,
+    });
     setIsLoggedIn(false);
     setCurrentPage('home'); 
   };
@@ -277,12 +299,33 @@ const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     showToast("Profile updated successfully", 'success');
   };
   
+  const markNotificationAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+
   const markAllNotificationsAsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     showToast('All notifications marked as read.', 'info');
   };
 
-  const value = { theme, toggleTheme, isLoggedIn, login, logout, currentPage, setCurrentPage, projects, addProject, deleteProject, updateProject, tasks, addTask, toggleTask, notes, addNote, isModalOpen, openModal, closeModal, isQuickAddOpen, openQuickAdd, closeQuickAdd, toastMessage, showToast, isForgotPasswordOpen, openForgotPassword, closeForgotPassword, activeProject, setActiveProject, userProfile, updateUserProfile, language, setLanguage, isExportModalOpen, openExportModal, closeExportModal, notifications, markAllNotificationsAsRead };
+  const addSearchToHistory = useCallback((query: string) => {
+    const cleanedQuery = query.trim().toLowerCase();
+    if (!cleanedQuery) return;
+    setSearchHistory(prev => {
+        const newHistory = [
+            query.trim(),
+            ...prev.filter(item => item.trim().toLowerCase() !== cleanedQuery)
+        ];
+        return newHistory.slice(0, 10);
+    });
+  }, []);
+
+  const clearSearchHistory = useCallback(() => {
+      setSearchHistory([]);
+      showToast('Search history cleared.', 'info');
+  }, [showToast]);
+
+  const value = { theme, toggleTheme, isLoggedIn, login, logout, currentPage, setCurrentPage, projects, addProject, deleteProject, updateProject, tasks, addTask, toggleTask, notes, addNote, isModalOpen, openModal, closeModal, isQuickAddOpen, openQuickAdd, closeQuickAdd, toastMessage, showToast, isForgotPasswordOpen, openForgotPassword, closeForgotPassword, activeProject, setActiveProject, userProfile, updateUserProfile, language, setLanguage, isExportModalOpen, openExportModal, closeExportModal, notifications, markNotificationAsRead, markAllNotificationsAsRead, searchHistory, addSearchToHistory, clearSearchHistory };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
@@ -432,7 +475,7 @@ const ForgotPasswordModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
 // --- Login Page ---
 const LoginPage: React.FC = () => {
-    const { login, openForgotPassword, showToast, userProfile } = useAppContext();
+    const { login, openForgotPassword, showToast } = useAppContext();
     const [isCreatingAccount, setIsCreatingAccount] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -443,14 +486,23 @@ const LoginPage: React.FC = () => {
     const [error, setError] = useState('');
     const [isShaking, setIsShaking] = useState(false);
 
-    const handleOAuth = (provider: 'google' | 'microsoft' | 'apple') => {
+    // State for create account form
+    const [createName, setCreateName] = useState('');
+    const [createPhone, setCreatePhone] = useState('');
+    const [createEmail, setCreateEmail] = useState('');
+    const [createPassword, setCreatePassword] = useState('');
+    const [createConfirmPassword, setCreateConfirmPassword] = useState('');
+
+    const handleOAuth = (provider: 'google' | 'microsoft') => {
       console.log(`Initiating ${provider} OAuth sign-in...`);
       setLoadingProvider(provider);
       // In a real app, you would redirect to the OAuth provider here.
       // For this demo, we'll simulate a delay and then log in.
       setTimeout(() => {
-          login(rememberMe);
-          showToast(`Welcome, ${userProfile.name} 🎓`, 'success');
+          const name = 'Social User';
+          const email = 'social.user@example.com';
+          login({ name, email }, rememberMe);
+          showToast(`Welcome, ${name} 🎓`, 'success');
           setLoadingProvider(null);
       }, 1500);
     };
@@ -466,11 +518,30 @@ const LoginPage: React.FC = () => {
             return;
         }
         
-        // Simulate successful authentication
-        login(rememberMe);
-        showToast(`Welcome, ${userProfile.name} 🎓`, 'success');
+        // Derive name from email for display purposes
+        const nameFromEmail = email.split('@')[0]
+            .replace(/[._-]/g, ' ')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+
+        login({ name: nameFromEmail, email: email }, rememberMe);
+        showToast(`Welcome, ${nameFromEmail} 🎓`, 'success');
     };
   
+    const handleCreateAccount = (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (!createName || !createEmail || !createPassword || createPassword !== createConfirmPassword) {
+            setError('Please fill out all fields and ensure passwords match.');
+            setIsShaking(true);
+            setTimeout(() => setIsShaking(false), 500);
+            return;
+        }
+        login({ name: createName, email: createEmail }, rememberMe);
+        showToast(`Welcome, ${createName} 🎓`, 'success');
+    };
+
     const socialButtonClasses = "w-full h-[46px] flex items-center justify-center space-x-3 py-3 rounded-lg border hover:scale-105 hover:shadow-lg active:scale-100 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700";
 
     const socialLogins = (
@@ -501,32 +572,21 @@ const LoginPage: React.FC = () => {
                   </>
                  )}
             </button>
-            <button 
-                onClick={() => handleOAuth('apple')}
-                disabled={!!loadingProvider}
-                className={socialButtonClasses}
-                aria-label="Continue with Apple"
-            >
-                {loadingProvider === 'apple' ? <SpinnerIcon /> : (
-                  <>
-                    <AppleIcon className="w-6 h-6"/>
-                    <span className="font-semibold text-sm">Continue with Apple</span>
-                  </>
-                )}
-            </button>
         </div>
     );
   
     const createAccountForm = (
-      <form className="space-y-4 animate-fade-up" style={{ animationDuration: '0.3s' }} onSubmit={(e) => { e.preventDefault(); login(); }}>
+      <form className={`space-y-4 animate-fade-up ${isShaking ? 'animate-shake' : ''}`} style={{ animationDuration: '0.3s' }} onSubmit={handleCreateAccount}>
           <h3 className="text-xl font-bold text-center">Create Your Account</h3>
-          <InputWithIcon icon={<UserIcon />} placeholder="Full Name" />
-          <InputWithIcon icon={<PhoneIcon />} placeholder="Phone Number" type="tel" />
-          <InputWithIcon icon={<EmailIcon />} placeholder="Email ID" type="email" />
+          <InputWithIcon icon={<UserIcon />} placeholder="Full Name" value={createName} onChange={(e) => setCreateName(e.target.value)} />
+          <InputWithIcon icon={<PhoneIcon />} placeholder="Phone Number" type="tel" value={createPhone} onChange={(e) => setCreatePhone(e.target.value)} />
+          <InputWithIcon icon={<EmailIcon />} placeholder="Email ID" type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
           <InputWithIcon 
               icon={<LockIcon />} 
               placeholder="Password" 
               type={showCreatePassword ? 'text' : 'password'}
+              value={createPassword}
+              onChange={(e) => setCreatePassword(e.target.value)}
               rightIcon={showCreatePassword ? <EyeSlashIcon /> : <EyeIcon />}
               onRightIconClick={() => setShowCreatePassword(!showCreatePassword)}
           />
@@ -534,9 +594,12 @@ const LoginPage: React.FC = () => {
               icon={<LockIcon />} 
               placeholder="Confirm Password" 
               type={showCreatePassword ? 'text' : 'password'}
+              value={createConfirmPassword}
+              onChange={(e) => setCreateConfirmPassword(e.target.value)}
               rightIcon={showCreatePassword ? <EyeSlashIcon /> : <EyeIcon />}
               onRightIconClick={() => setShowCreatePassword(!showCreatePassword)}
           />
+           {error && <p className="text-red-500 text-sm text-center font-semibold">{error}</p>}
           <button type="submit" className="w-full py-3 font-bold text-white rounded-lg bg-light-accent dark:bg-dark-accent hover:opacity-90 dark:text-dark-background transition-all duration-300 shadow-lg dark:shadow-dark-accent/30 hover:shadow-xl dark:hover:shadow-dark-accent/50 group dark:hover:animate-glow">
               ✅ Create Account
           </button>
@@ -666,7 +729,7 @@ const Sidebar: React.FC = () => {
 };
 
 const Header: React.FC = () => {
-    const { logout, setCurrentPage, userProfile, notifications, markAllNotificationsAsRead } = useAppContext();
+    const { logout, setCurrentPage, userProfile, notifications, markAllNotificationsAsRead, markNotificationAsRead, setActiveProject, projects } = useAppContext();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -693,6 +756,21 @@ const Header: React.FC = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const handleNotificationClick = (notification: Notification) => {
+        markNotificationAsRead(notification.id);
+  
+        if (notification.link) {
+            if (notification.link === 'projects' && notification.contextId) {
+                const projectToActivate = projects.find(p => p.id === notification.contextId);
+                if (projectToActivate) {
+                    setActiveProject(projectToActivate);
+                }
+            }
+            setCurrentPage(notification.link);
+        }
+        setIsNotificationsOpen(false);
+      };
 
     const notificationIcons = {
         project: <ProjectsIcon className="w-5 h-5 text-blue-500" />,
@@ -729,18 +807,22 @@ const Header: React.FC = () => {
                             <div className="max-h-96 overflow-y-auto">
                                 {notifications.length > 0 ? (
                                     notifications.map(n => (
-                                        <div key={n.id} className={`flex items-start gap-3 p-3 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${!n.isRead ? '' : 'opacity-60'}`}>
+                                        <button 
+                                            key={n.id}
+                                            onClick={() => handleNotificationClick(n)}
+                                            className={`w-full text-left flex items-start gap-3 p-3 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${!n.isRead ? '' : 'opacity-60'}`}
+                                        >
                                             <div className="flex-shrink-0 mt-1">
                                                 {notificationIcons[n.type]}
                                             </div>
-                                            <div>
+                                            <div className="flex-1">
                                                 <p className="text-sm">{n.text}</p>
                                                 <p className="text-xs opacity-70">{n.timestamp}</p>
                                             </div>
                                             {!n.isRead && (
                                                 <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2 ml-auto"></div>
                                             )}
-                                        </div>
+                                        </button>
                                     ))
                                 ) : (
                                     <div className="text-center p-6 text-sm opacity-70">
@@ -786,72 +868,138 @@ const Header: React.FC = () => {
 };
 
 const HomePage: React.FC = () => {
-    const { projects, setActiveProject, setCurrentPage, tasks, toggleTask, notes, openQuickAdd } = useAppContext();
+    const { userProfile, projects, setActiveProject, setCurrentPage, tasks, toggleTask, notes, addNote, openQuickAdd, notifications } = useAppContext();
+    const [newNote, setNewNote] = useState('');
 
-    const recentProjects = projects.slice(0, 3);
+    const today = new Date();
+    const formattedDate = new Intl.DateTimeFormat('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    }).format(today);
+
+    const stats = useMemo(() => ({
+        activeProjects: projects.filter(p => p.status === 'Active').length,
+        tasksDue: tasks.filter(t => !t.completed && (t.dueDate === 'Today' || t.dueDate === 'Tomorrow')).length,
+        unreadNotifications: notifications.filter(n => !n.isRead).length,
+        completedProjects: projects.filter(p => p.status === 'Completed').length,
+    }), [projects, tasks, notifications]);
+
+    const handleAddNote = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newNote.trim()) {
+            addNote({ text: newNote });
+            setNewNote('');
+        }
+    };
+    
+    const StatCard: React.FC<{ icon: React.ReactNode, value: number, title: string, color: string, onClick?: () => void }> = ({ icon, value, title, color, onClick }) => (
+        <div onClick={onClick} className={`relative flex items-center p-4 rounded-xl shadow-sm border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${onClick ? 'cursor-pointer' : ''}`}>
+            <div className={`absolute -left-4 -top-4 w-16 h-16 rounded-full opacity-10 ${color}`}></div>
+            <div className={`p-3 rounded-lg mr-4 ${color} text-white`}>{icon}</div>
+            <div>
+                <p className="text-2xl font-bold">{value}</p>
+                <p className="text-sm opacity-70">{title}</p>
+            </div>
+        </div>
+    );
+    
+    const uncompletedTasks = useMemo(() => tasks.filter(t => !t.completed).slice(0, 5), [tasks]);
+    const recentProjects = useMemo(() => projects.slice(0, 4), [projects]);
 
     return (
         <div className="p-8 h-full overflow-y-auto relative">
+            {/* Header */}
             <div className="animate-fade-up">
-                <h1 className="text-4xl font-bold mb-2 text-light-text dark:text-dark-text">Dashboard</h1>
-                <p className="text-lg text-light-text/70 dark:text-dark-text/70 mb-8">Here's a quick overview of your workspace.</p>
-                 <div className="relative mb-8">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-light-text/50 dark:text-dark-text/50"><SearchIcon className="w-5 h-5"/></span>
-                    <input 
-                        type="text" 
-                        placeholder="Search for anything..."
-                        onFocus={() => setCurrentPage('search')}
-                        className="w-full pl-12 pr-4 py-3 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-all"
-                    />
-                </div>
+                <h1 className="text-4xl font-bold text-light-text dark:text-dark-text">Welcome back, {userProfile.name.split(' ')[0]}!</h1>
+                <p className="text-lg text-light-text/70 dark:text-dark-text/70 mt-1 mb-8">{formattedDate}</p>
             </div>
-           
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-up" style={{ animationDelay: '0.2s' }}>
-                {/* Recent Projects Card */}
-                <div className="lg:col-span-2 bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border">
-                    <h3 className="text-xl font-bold mb-4">Recent Projects</h3>
-                    <div className="space-y-3">
-                        {recentProjects.length > 0 ? recentProjects.map(p => (
-                            <div key={p.id} onClick={() => { setCurrentPage('projects'); setActiveProject(p); }} className="p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors">
-                                <p className="font-semibold text-light-accent dark:text-dark-accent">{p.title}</p>
-                                <p className="text-sm text-light-text/60 dark:text-dark-text/60 line-clamp-1">{p.description}</p>
-                            </div>
-                        )) : <p className="text-light-text/60 dark:text-dark-text/60">No recent projects. Start a new one!</p>}
+
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 animate-fade-up" style={{ animationDelay: '0.1s' }}>
+                <StatCard icon={<ProjectsIcon />} value={stats.activeProjects} title="Active Projects" color="bg-blue-500" onClick={() => setCurrentPage('projects')} />
+                <StatCard icon={<ClockIcon />} value={stats.tasksDue} title="Tasks Due Soon" color="bg-orange-500" />
+                <StatCard icon={<NotificationIcon />} value={stats.unreadNotifications} title="Unread Alerts" color="bg-red-500" />
+                <StatCard icon={<CheckCircleIcon />} value={stats.completedProjects} title="Completed Projects" color="bg-green-500" onClick={() => setCurrentPage('projects')} />
+            </div>
+            
+            {/* Main Dashboard Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Recent Projects Card */}
+                    <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border animate-fade-up" style={{ animationDelay: '0.2s' }}>
+                        <h3 className="text-xl font-bold mb-4">Recent Projects</h3>
+                        <div className="space-y-3">
+                            {recentProjects.length > 0 ? recentProjects.map(p => (
+                                <div key={p.id} onClick={() => { setCurrentPage('projects'); setActiveProject(p); }} className="p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-light-accent dark:text-dark-accent">{p.title}</p>
+                                        <p className="text-sm text-light-text/60 dark:text-dark-text/60 line-clamp-1">{p.description}</p>
+                                    </div>
+                                    {p.isPinned && <PinSolidIcon className="w-5 h-5 text-yellow-500 flex-shrink-0" />}
+                                </div>
+                            )) : (
+                                <div className="text-center py-8">
+                                    <ProjectsIcon className="w-12 h-12 mx-auto text-gray-400 mb-2"/>
+                                    <p className="text-light-text/60 dark:text-dark-text/60">No recent projects yet.</p>
+                                    <button onClick={() => setCurrentPage('projects')} className="mt-2 text-sm font-semibold text-light-accent dark:text-dark-accent hover:underline">Start a new project</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Upcoming Tasks Card */}
+                    <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border animate-fade-up" style={{ animationDelay: '0.3s' }}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold">Upcoming Tasks</h3>
+                            <button onClick={openQuickAdd} className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-light-accent dark:text-dark-accent"><PlusIcon/></button>
+                        </div>
+                        <div className="space-y-2">
+                            {uncompletedTasks.length > 0 ? uncompletedTasks.map(task => (
+                                <div key={task.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                                    <div className="flex items-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={task.completed} 
+                                            onChange={() => toggleTask(task.id)}
+                                            className="h-5 w-5 rounded-full border-gray-400/50 text-green-500 focus:ring-green-400 cursor-pointer"
+                                        />
+                                        <div className="ml-3">
+                                            <p className="font-medium">{task.text}</p>
+                                            <p className="text-sm text-light-text/60 dark:text-dark-text/60">{task.dueDate}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-center py-8">
+                                    <CheckCircleIcon className="w-12 h-12 mx-auto text-gray-400 mb-2"/>
+                                    <p className="text-light-text/60 dark:text-dark-text/60">You're all caught up!</p>
+                                    <button onClick={openQuickAdd} className="mt-2 text-sm font-semibold text-light-accent dark:text-dark-accent hover:underline">Add a new task</button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
                 {/* Quick Notes Card */}
-                <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border">
+                <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border animate-fade-up lg:h-full flex flex-col" style={{ animationDelay: '0.4s' }}>
                     <h3 className="text-xl font-bold mb-4">Quick Notes</h3>
-                    <div className="space-y-3">
-                        {notes.slice(0, 2).map(note => (
+                    <form onSubmit={handleAddNote} className="mb-4">
+                        <textarea 
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            placeholder="What's on your mind?"
+                            rows={3}
+                            className="w-full p-2 bg-light-background dark:bg-dark-background border-2 border-light-border dark:border-dark-border rounded-md focus:outline-none focus:border-light-accent dark:focus:border-dark-accent"
+                        />
+                        <button type="submit" className="w-full mt-2 py-2 font-semibold text-white rounded-lg bg-light-accent dark:bg-dark-accent hover:opacity-90 dark:text-dark-background transition-colors">Add Note</button>
+                    </form>
+                    <div className="space-y-3 flex-1 overflow-y-auto">
+                        {notes.slice(0, 4).map(note => (
                             <div key={note.id} className="p-3 bg-yellow-500/10 rounded-lg">
                                 <p className="text-sm text-yellow-800 dark:text-yellow-200 line-clamp-2">{note.text}</p>
                                 <p className="text-xs text-yellow-600 dark:text-yellow-400/70 mt-1">{note.timestamp}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* My Tasks Card */}
-                <div className="lg:col-span-3 bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-sm border border-light-border dark:border-dark-border">
-                    <h3 className="text-xl font-bold mb-4">My Tasks</h3>
-                    <div className="space-y-2">
-                        {tasks.map(task => (
-                            <div key={task.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                                <div className="flex items-center">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={task.completed} 
-                                        onChange={() => toggleTask(task.id)}
-                                        className="h-5 w-5 rounded-full border-gray-400/50 text-green-500 focus:ring-green-400 cursor-pointer"
-                                    />
-                                    <div className="ml-3">
-                                        <p className={`font-medium ${task.completed ? 'line-through text-light-text/50 dark:text-dark-text/50' : ''}`}>{task.text}</p>
-                                        <p className={`text-sm ${task.completed ? 'text-light-text/40 dark:text-dark-text/40' : 'text-light-text/60 dark:text-dark-text/60'}`}>{task.dueDate}</p>
-                                    </div>
-                                </div>
-                                {task.completed && <CheckCircleIcon className="w-6 h-6 text-green-500"/>}
                             </div>
                         ))}
                     </div>
@@ -1503,11 +1651,12 @@ const ChatPage: React.FC = () => {
 };
 
 const SearchPage: React.FC = () => {
-    const { projects, setActiveProject, setCurrentPage, language } = useAppContext();
+    const { projects, setActiveProject, setCurrentPage, language, searchHistory, addSearchToHistory, clearSearchHistory } = useAppContext();
     const [query, setQuery] = useState('');
     const [filter, setFilter] = useState<'all' | 'projects' | 'chats'>('all');
     const [isLoading, setIsLoading] = useState(false);
     const [aiResponse, setAiResponse] = useState<string | null>(null);
+    const [isFocused, setIsFocused] = useState(false);
 
     const searchResults = useMemo(() => {
         if (!query) return [];
@@ -1532,21 +1681,29 @@ const SearchPage: React.FC = () => {
         }
         return results;
     }, [query, filter, projects]);
-
-    const handleSearch = async () => {
-        if (searchResults.length === 0 && query) {
-            setIsLoading(true);
-            setAiResponse(null);
-            const response = await generateChatResponse(`The user searched for "${query}" and found no results. Provide a helpful response or alternative suggestions.`, language);
-            setAiResponse(response);
-            setIsLoading(false);
-        }
-    };
     
+    const handleSearchAI = useCallback(async () => {
+      if (searchResults.length === 0 && query.trim()) {
+          setIsLoading(true);
+          setAiResponse(null);
+          const response = await generateChatResponse(`The user searched for "${query}" and found no results. Provide a helpful response or alternative suggestions.`, language);
+          setAiResponse(response);
+          setIsLoading(false);
+      } else {
+          setIsLoading(false);
+          setAiResponse(null);
+      }
+    }, [query, searchResults, language]);
+
     useEffect(() => {
-        const debounceTimer = setTimeout(() => handleSearch(), 1000);
-        return () => clearTimeout(debounceTimer);
-    }, [query, searchResults.length]);
+      const debounceTimer = setTimeout(() => {
+          if (query.trim()) {
+              addSearchToHistory(query.trim());
+          }
+          handleSearchAI();
+      }, 1000);
+      return () => clearTimeout(debounceTimer);
+    }, [query, addSearchToHistory, handleSearchAI]);
 
     const handleResultClick = (result: { type: 'project' | 'chat'; item: Project }) => {
         setCurrentPage('projects');
@@ -1558,11 +1715,40 @@ const SearchPage: React.FC = () => {
             <h1 className="text-4xl font-bold mb-2">Intelligent Search</h1>
             <div className="relative mb-4">
                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><SearchIcon className="w-5 h-5 text-gray-400" /></div>
-                <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search your projects, chats, and ideas..." className="w-full pl-10 pr-12 py-3 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-all" />
+                <input 
+                    type="text" 
+                    value={query} 
+                    onChange={e => setQuery(e.target.value)} 
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                    placeholder="Search your projects, chats, and ideas..." 
+                    className="w-full pl-10 pr-12 py-3 bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-light-accent dark:focus:ring-dark-accent transition-all" />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                     <button className="p-1 text-gray-400 hover:text-light-text dark:hover:text-dark-text"><MicrophoneIcon className="w-5 h-5"/></button>
                 </div>
                 {isLoading && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-light-accent dark:bg-dark-accent animate-shimmer bg-gradient-to-r from-transparent via-light-accent dark:via-dark-accent to-transparent bg-[length:200%_100%]" />}
+                
+                {isFocused && !query && searchHistory.length > 0 && (
+                    <div className="absolute top-full mt-2 w-full bg-light-card dark:bg-dark-card rounded-lg shadow-lg border border-light-border dark:border-dark-border z-10 p-2 animate-fade-up" style={{ animationDuration: '0.2s' }}>
+                        <div className="flex justify-between items-center px-2 pb-2 border-b border-light-border dark:border-dark-border">
+                            <h4 className="text-sm font-semibold opacity-70">Recent Searches</h4>
+                            <button onClick={clearSearchHistory} className="text-xs font-semibold text-light-accent dark:text-dark-accent hover:underline">Clear</button>
+                        </div>
+                        <ul className="mt-1 max-h-60 overflow-y-auto">
+                            {searchHistory.map((item, index) => (
+                                <li key={index}>
+                                    <button 
+                                        onClick={() => setQuery(item)}
+                                        className="w-full text-left px-2 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center justify-between group"
+                                    >
+                                        <span className="truncate">{item}</span>
+                                        <ClockIcon className="w-4 h-4 opacity-50 flex-shrink-0 ml-2 group-hover:opacity-80" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </div>
             <div className="flex space-x-2 mb-6">
                 {(['all', 'projects', 'chats'] as const).map(f => (

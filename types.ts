@@ -58,4 +58,6 @@ export interface Notification {
   timestamp: string;
   isRead: boolean;
   type: 'project' | 'task' | 'general';
+  link?: Page;
+  contextId?: string;
 }
